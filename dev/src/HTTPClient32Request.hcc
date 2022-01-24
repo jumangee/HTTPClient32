@@ -1,0 +1,278 @@
+#pragma once
+
+#include <WiFiClient.h>
+#include "FS.h"
+
+#include "HTTPClient32.h"
+#include "uri_encode.h"
+
+class HTTPClient32;
+class HTTPClient32PostBody;
+class HTTPClient32PostDataBody;
+class HTTPClient32PostMultipartBody;
+class HTTPClient32PostUrlencodedBody;
+
+
+#ifndef HTTPCLIENT32REQUEST_PACKETSIZE
+    #define HTTPCLIENT32REQUEST_PACKETSIZE 4096
+#endif
+
+
+class HTTPClient32PostBodyContent {
+    protected:
+        HTTPClient32PostBody*   postbody;
+        String	  	            content;
+        size_t			        size = 0;
+
+        //@implement
+        void setContent(String content, size_t totalSize) {
+            this->content = content;
+            this->size = totalSize;
+        };
+
+        //@implement
+        void sendBuf(WiFiClient* stream, uint8_t* buf, size_t buflen) {
+            DEBUGLN("HTTPClient32PostBodyContent::sendBuf size: " + String(buflen));
+            for (size_t n = 0; n < buflen; n = n + HTTPCLIENT32REQUEST_PACKETSIZE)	{
+                if (n + HTTPCLIENT32REQUEST_PACKETSIZE < buflen)	{
+                    stream->write(buf, HTTPCLIENT32REQUEST_PACKETSIZE);
+                    DEBUGLN("written " + String(HTTPCLIENT32REQUEST_PACKETSIZE));
+                    buf += HTTPCLIENT32REQUEST_PACKETSIZE;
+                }
+                else if (buflen % HTTPCLIENT32REQUEST_PACKETSIZE > 0)	{
+                    size_t remainder = buflen % HTTPCLIENT32REQUEST_PACKETSIZE;
+                    stream->write(buf, remainder);
+                    DEBUGLN("written " + String(remainder));
+                }
+            }
+            DEBUGLN("HTTPClient32PostBodyContent::sendBuf done");
+        }
+        
+        //@implement
+        void sendFile(WiFiClient* stream, File &file) {
+            DEBUGLN("sendFile: " + String(file.size()));
+            size_t len = file.size();
+            uint8_t buf[HTTPCLIENT32REQUEST_PACKETSIZE];
+            DEBUGLN("sendFile size: " + String(len));
+            for (size_t n = 0; n < len; n = n + HTTPCLIENT32REQUEST_PACKETSIZE)	{
+                if (n + HTTPCLIENT32REQUEST_PACKETSIZE < len)	{
+                    file.read(buf, HTTPCLIENT32REQUEST_PACKETSIZE);
+                    stream->write(buf, HTTPCLIENT32REQUEST_PACKETSIZE);
+                    DEBUGLN("written " + String(HTTPCLIENT32REQUEST_PACKETSIZE));
+                }
+                else if (len % HTTPCLIENT32REQUEST_PACKETSIZE > 0)	{
+                    size_t remainder = len % HTTPCLIENT32REQUEST_PACKETSIZE;
+                    file.read(buf, remainder);
+                    stream->write(buf, remainder);
+                    DEBUGLN("written " + String(remainder));
+                }
+            }
+            DEBUGLN("sendFile done");
+        }
+
+    public:
+        size_t getSize() {
+            return size;
+        };
+
+        virtual void send(WiFiClient* stream) {
+            DEBUG(content);
+            stream->print(content);
+        };
+
+        HTTPClient32PostBodyContent(HTTPClient32PostBody* post) {
+            this->postbody = post;
+        };
+
+        virtual ~HTTPClient32PostBodyContent() {};
+};
+
+
+/*** Simple POST body content ***/
+
+class HTTPClient32PostDataBodyContent: public HTTPClient32PostBodyContent {
+    public:
+        //@implement
+        HTTPClient32PostDataBodyContent(HTTPClient32PostDataBody* post): HTTPClient32PostBodyContent((HTTPClient32PostBody*)post) {
+        }
+};
+
+
+class HTTPClient32PostBodyString: public HTTPClient32PostDataBodyContent {
+    public:
+        //@implement
+        HTTPClient32PostBodyString(HTTPClient32PostDataBody* post, String contentType, String value): HTTPClient32PostDataBodyContent(post) {
+            String result = value + EOL;
+            post->setContentType(contentType);
+            setContent(result, result.length());
+        }
+
+        //@implement
+        HTTPClient32PostBodyString(HTTPClient32PostDataBody* post): HTTPClient32PostDataBodyContent(post) {
+        }
+};
+
+
+class HTTPClient32PostBodyBuf: public HTTPClient32PostDataBodyContent {
+    protected:
+        uint8_t*  	buf = NULL;
+        size_t	  	buflen = 0;
+    public:
+        virtual void send(WiFiClient* stream) {
+            this->sendBuf(stream, this->buf, this->buflen);
+        };
+
+        //@implement
+        HTTPClient32PostBodyBuf(HTTPClient32PostDataBody* post, String contentType, uint8_t* buf, size_t buflen): HTTPClient32PostDataBodyContent(post) {
+            this->buf = buf;
+            this->buflen = buflen;
+
+            post->setContentType(contentType);
+            setContent("", buflen);
+        }
+};
+
+
+class HTTPClient32PostBodyFile: public HTTPClient32PostDataBodyContent {
+    protected:
+        File	file;
+
+    public:
+        virtual void send(WiFiClient* stream) {
+            this->sendFile(stream, this->file);
+        };
+
+        //@implement
+        HTTPClient32PostBodyFile(HTTPClient32PostDataBody* post, String contentType, File &file): HTTPClient32PostDataBodyContent(post) {
+            this->file = file;
+            post->setContentType(contentType);
+            setContent("", file.size());
+        }
+};
+
+
+/*** Multipart POST body content ***/
+
+class HTTPClient32PostMultipartContent: public HTTPClient32PostBodyContent {
+    protected:
+        String name;
+
+        //@implement
+        String getPartHeader() {
+            String result = ((HTTPClient32PostMultipartBody*)postbody)->getBoundaryId();
+            result += EOL;
+            result += F("Content-Disposition: form-data; name=\"");
+            result += this->name;
+            result += "\"";
+
+            return result;
+        }
+
+    public:
+        //@implement
+        HTTPClient32PostMultipartContent(HTTPClient32PostMultipartBody* post, String name): HTTPClient32PostBodyContent((HTTPClient32PostBody*)post) {
+            this->name = name;
+        }
+};
+
+
+class HTTPClient32MultipartString: public HTTPClient32PostMultipartContent {
+    public:
+        //@implement
+        HTTPClient32MultipartString(HTTPClient32PostMultipartBody* post, String name, String value): HTTPClient32PostMultipartContent(post, name) {
+            this->setValue(value);
+        }
+
+        void setValue(String value) {
+            String result = this->getPartHeader();
+            result += EOL;
+            result += EOL;
+            result += value;
+            result += EOL;
+
+            setContent(result, result.length());
+        }
+};
+
+
+class HTTPClient32MultipartFile: public HTTPClient32PostMultipartContent {
+    protected:
+        uint8_t*  	buf = NULL;
+        size_t	  	buflen = 0;
+
+        //@implement
+        void fileContent(String &filename, String &contentType, size_t binarySize) {
+            String result = getPartHeader();
+
+            if (filename.length() > 0) {
+                result += F("; filename=\"");
+                result += filename;
+                result += F("\"");
+            }
+
+            result += EOL;
+
+            if (contentType.length() > 0) {
+                result += F("Content-Type: ");
+                result += contentType;
+                result += EOL;
+            }
+
+            result += EOL;
+
+            setContent(result, result.length() + buflen);
+        }
+
+    public:
+        HTTPClient32MultipartFile(HTTPClient32PostMultipartBody* post, String name): HTTPClient32PostMultipartContent(post, name)  {
+        }
+};
+
+
+class HTTPClient32MultipartFileBuffer: public HTTPClient32MultipartFile {
+    protected:
+        uint8_t*  	buf = NULL;
+        size_t	  	buflen = 0;
+
+    public:
+        virtual void send(WiFiClient* stream) {
+            HTTPClient32PostBodyContent::send(stream);
+            this->sendBuf(stream, this->buf, this->buflen);
+        };
+
+        //@implement
+        HTTPClient32MultipartFileBuffer(HTTPClient32PostMultipartBody* post, String name, String filename, String contentType, uint8_t* buf, size_t buflen): HTTPClient32MultipartFile(post, name) {
+            this->setValue(filename, contentType, buf, buflen);
+        }
+
+        void setValue(String filename, String contentType, uint8_t* buf, size_t buflen) {
+            fileContent(filename, contentType, buflen);
+
+            this->buf = buf;
+            this->buflen = buflen;			
+        }        
+};
+
+
+class HTTPClient32MultipartFileFS: public HTTPClient32MultipartFile {
+    protected:
+        File	file;
+
+    public:
+        virtual void send(WiFiClient* stream) {
+            HTTPClient32PostBodyContent::send(stream);
+            this->sendFile(stream, this->file);
+        };
+
+        //@implement
+        HTTPClient32MultipartFileFS(HTTPClient32PostMultipartBody* post, String name, String filename, String contentType, File &file) : HTTPClient32MultipartFile(post, name) {
+            this->setValue(filename, contentType, file);
+        }
+
+        void setValue(String filename, String contentType, File &file) {
+            fileContent(filename, contentType, file.size());
+
+            this->file = file;
+        }        
+
+};

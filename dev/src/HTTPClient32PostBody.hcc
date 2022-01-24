@@ -1,0 +1,290 @@
+#pragma once
+
+#include <Arduino.h>
+#include <WiFiClient.h>
+
+#include "HTTPClient32.h"
+
+#define HTTPCLIENT32_CONTENTSMAX		20
+
+
+class HTTPClient32;
+
+class HTTPClient32PostBodyContent;
+class HTTPClient32PostDataBodyContent;
+class HTTPClient32PostMultipartContent;
+
+class HTTPClient32PostBodyString;
+class HTTPClient32PostBodyBuf;
+class HTTPClient32PostBodyFile;
+
+class HTTPClient32MultipartString;
+class HTTPClient32MultipartFileBuffer;
+class HTTPClient32MultipartFileFS;
+
+/**
+ * @brief POST-body parent
+ * 
+ */
+class HTTPClient32PostBody {
+    protected:
+        HTTPClient32* client;
+
+    public:
+        HTTPClient32PostBody(HTTPClient32* client) {
+            this->client = client;
+        }
+
+        virtual ~HTTPClient32PostBody() {};
+
+        virtual size_t size() {
+            return 0;
+        };
+
+        virtual bool send(WiFiClient* stream) {
+            return false;
+        };
+};
+
+/**
+ * @brief "Plain" POST-body
+ * 
+ */
+class HTTPClient32PostDataBody: public HTTPClient32PostBody {
+    protected:
+		HTTPClient32PostBodyContent*		body = NULL;
+
+    public:
+        HTTPClient32PostDataBody(HTTPClient32* client): HTTPClient32PostBody(client) {
+        }
+
+        ~HTTPClient32PostDataBody() {
+            setBody(NULL);
+        }
+
+        //@implement
+        void setBody(HTTPClient32PostBodyContent* body) {
+            if (this->body) {
+                delete body;
+            }
+            this->body = body;
+        }
+
+        //@implement
+        //@include "HTTPClient32Headers.h"
+        void setContentType(String &contentType) {
+            client->getRequestHeaders()->set(HTTPCLIENT32_HEADER_CONTENTTYPE, contentType);
+        }
+
+        HTTPClient32PostBodyContent* getContent() {
+            return this->body;
+        }
+
+        //@implement
+		HTTPClient32PostDataBody* setBodyString(String contentType, String body) {
+			HTTPClient32PostBodyString* c = new HTTPClient32PostBodyString(this, contentType, body);
+			setBody(c);
+			return this;
+		}
+
+        //@implement
+		HTTPClient32PostDataBody* setBodyFileBuf(String name, String filename, String contentType, uint8_t* buf, size_t buflen) {
+			HTTPClient32PostBodyBuf* c = new HTTPClient32PostBodyBuf(this, contentType, buf, buflen);
+			setBody(c);
+			return this;
+		}
+
+        //@implement
+		HTTPClient32PostDataBody* setBodyFileFS(String name, String filename, String contentType, File &file) {
+			HTTPClient32PostBodyFile* c = new HTTPClient32PostBodyFile(this, contentType, file);
+			setBody(c);
+			return this;
+		}
+
+        //@implement
+        virtual size_t size() {
+            return this->body->getSize();
+        }
+
+        //@implement
+        virtual bool send(WiFiClient* stream) {
+            DEBUGLN("Sending data body");
+
+            this->body->send(stream);
+            return true;
+        }
+};
+
+
+/**
+ * @brief x-www-form-urlencoded POST-body
+ * 
+ */
+class HTTPClient32PostUrlencodedBody: public HTTPClient32PostBody {
+    protected:
+		size_t  contentSize = 0;
+		String  content;
+
+    public:
+        //@implement    
+        HTTPClient32PostUrlencodedBody(HTTPClient32* client): HTTPClient32PostBody(client) {
+            client->getRequestHeaders()->set(HTTPCLIENT32_HEADER_CONTENTTYPE, F("application/x-www-form-urlencoded"));
+        }
+
+        ~HTTPClient32PostUrlencodedBody() {
+			clear();
+        }
+
+        //@implement
+		void clear() {
+			content = "";
+            contentSize = 0;
+		}
+
+        /**
+         * @brief URI-encode and add to POST body
+         * 
+         * @param name 
+         * @param value 
+         * @return HTTPClient32PostUrlencodedBody* 
+         */
+        //@implement
+		HTTPClient32PostUrlencodedBody* addValue(String name, String value) {
+            String encoded = HTTPClient32::URIEncode(value);
+            if (contentSize) {
+                content += '&';
+            }
+            content += name + '=' + encoded;
+            contentSize = content.length();
+			
+			return this;
+		}
+
+        //@implement
+        virtual size_t size() {
+            return contentSize;
+        }
+
+        //@implement
+        virtual bool send(WiFiClient* stream) {
+            DEBUGLN("Sending urlencoded body");
+
+            stream->println(content);
+
+            return true;
+        }
+};
+
+
+/**
+ * @brief Multipart POST-body
+ * 
+ */
+class HTTPClient32PostMultipartBody: public HTTPClient32PostBody {
+    protected:
+		String                  		    boundaryId;
+		uint8_t                 		    contents = 0;
+		HTTPClient32PostMultipartContent*	content[HTTPCLIENT32_CONTENTSMAX];
+
+        //@implement
+        void generateBoundary() {
+            boundaryId.reserve(7 + sizeof(millis()));
+			for (uint8_t i = 0; i < 7; i++) {
+				boundaryId += String(random(10));
+			}
+			boundaryId += String(millis());
+			
+            //DEBUG("boundaryId: ");
+			//DEBUGLN(boundaryId);
+
+            String header = F("multipart/form-data; boundary=");
+            header += String(boundaryId);   //getBoundaryId(); 
+            client->getRequestHeaders()->set(HTTPCLIENT32_HEADER_CONTENTTYPE, header);
+        }
+
+    public:
+        //@implement    
+        HTTPClient32PostMultipartBody(HTTPClient32* client): HTTPClient32PostBody(client) {
+            generateBoundary();
+        }
+
+		String getBoundaryId(bool full = true) {
+			return String(full ? F("--") : F("")) + boundaryId;
+		}
+
+        ~HTTPClient32PostMultipartBody() {
+            DEBUGLN("Free multipart body content");
+			clear();
+        }
+
+        //@implement
+		void clear() {
+			for (uint8_t i = 0; i < contents; i++) {
+				delete content[i];
+			}
+		}
+
+        // Add multipart body content unit (false - limit reached)
+        //@implement
+		bool addContent(HTTPClient32PostMultipartContent* part) {
+			if (contents < HTTPCLIENT32_CONTENTSMAX) {
+				content[contents] = part;
+				contents++;
+				return true;
+			}
+            delete part;
+			return false;
+		}
+
+        //@implement
+		HTTPClient32MultipartString* addContentString(String name, String value) {
+			HTTPClient32MultipartString* c = new HTTPClient32MultipartString(this, name, value);
+			if (addContent(c)) return c;
+			return NULL;
+		}
+
+        //@implement
+		HTTPClient32MultipartString* addContentStringEncoded(String name, String value) {
+			HTTPClient32MultipartString* c = new HTTPClient32MultipartString(this, name, HTTPClient32::URIEncode(value));
+			if (addContent(c)) return c;
+			return NULL;
+		}
+
+        //@implement
+		HTTPClient32MultipartFileBuffer* addContentFileBuf(String name, String filename, String contentType, uint8_t* buf, size_t buflen) {
+			HTTPClient32MultipartFileBuffer* c = new HTTPClient32MultipartFileBuffer(this, name, filename, contentType, buf, buflen);
+			if (addContent(c)) return c;
+			return NULL;
+		}
+
+        //@implement
+		HTTPClient32MultipartFileFS* addContentFileFS(String name, String filename, String contentType, File &file) {
+			HTTPClient32MultipartFileFS* c = new HTTPClient32MultipartFileFS(this, name, filename, contentType, file);
+			if (addContent(c)) return c;
+			return NULL;
+		}
+
+        //@implement
+        virtual size_t size() {
+            size_t size = 0;
+            for (uint8_t i = 0; i < contents; i++) {
+                HTTPClient32PostBodyContent* c = content[i];
+                size += c->getSize();
+            }
+            return size + (getBoundaryId(true)).length() + 2 + 2;
+        }
+
+        //@implement
+        virtual bool send(WiFiClient* stream) {
+            DEBUGLN("Sending multipart body");
+
+            for (uint8_t i = 0; i < contents; i++) {
+                content[i]->send(stream);
+            }
+
+            DEBUGLN(getBoundaryId(true) + F("--"));
+            stream->println(getBoundaryId(true) + F("--"));
+
+            return true;
+        }        
+};

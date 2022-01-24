@@ -1,0 +1,18 @@
+{
+    "name": "HTTPClient32",
+    "version": "1.0.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/jumangee/HTTPClient32"
+    },
+    "description": "Flexible and simple object-oriented HTTP client library for the ESP32/ESP8266 supporting GET, POST urlencoded and multipart requests",
+    "keywords": ["multipart", "POST", "wifi", "filesending", "networking","HTTP","urlencoded","HTTPS"],
+    "authors": {
+        "name": "Dmitry Repin",
+        "email": "zdes@jumangee.net",
+        "url": "https://github.com/jumangee/HTTPClient32"
+    },
+    "license": "MIT",
+    "frameworks": ["arduino"],
+    "platforms": ["esp32","esp8266"]
+}

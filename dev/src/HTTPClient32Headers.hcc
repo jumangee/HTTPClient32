@@ -1,0 +1,90 @@
+#pragma once
+
+#include <Arduino.h>
+
+#include "HTTPClient32.h"
+
+#define HTTPCLIENT32_HEADERSMAX			25
+
+class HTTPClient32;
+
+class HTTPClient32Headers {
+    public:
+		struct Header {
+			String name;
+			String value;
+		};
+
+        //@implement
+        //@include "HTTPClient32Client.h"
+		HTTPClient32Headers* set(String name, String value) {
+			Header* header = find(name);
+			if (!header) {
+				if (headersCount >= HTTPCLIENT32_HEADERSMAX) {
+					return this;
+				}
+				header = new Header();
+				header->name = name;
+				this->headers[headersCount] = header;
+				headersCount++;
+			}
+			header->value = value;
+			return this;
+		}
+
+		~HTTPClient32Headers() {
+			DEBUGLN("Headers FREE");
+			clear();
+		}
+
+        //@implement
+		String get(String name) {
+			Header* h = find(name);
+            if (h) {
+                return h->value;
+            }
+            return String(F(""));
+		}
+
+        //@implement
+        HTTPClient32Headers::Header* find(String name) {
+            for (uint8_t i = 0; i < headersCount; i++) {
+				Header* h = headers[i];
+				if (h->name == name) {
+					return h;
+				}
+			}
+			return NULL;
+        }
+
+        //@implement
+		HTTPClient32Headers* clear() {
+			for (uint8_t i = 0; i < headersCount; i++) {
+				delete headers[i];
+			}
+			headersCount = 0;
+			return this;
+		}
+        
+        //@implement
+		bool is(String name) {
+			return (find(name) != NULL);
+		}
+
+        //@implement
+        uint8_t size() {
+            return headersCount;
+        }
+
+        //@implement
+        HTTPClient32Headers::Header* get(uint8_t pos) {
+            if (pos >= headersCount) {
+                return NULL;
+            }
+            return headers[pos];
+        }
+
+    protected:
+		Header* headers[HTTPCLIENT32_HEADERSMAX];
+		uint8_t headersCount = 0;
+};

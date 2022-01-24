@@ -1,0 +1,510 @@
+#pragma once
+
+#include <Arduino.h>
+#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
+
+#include <base64.h>
+
+#include "HTTPClient32.h"
+
+class HTTPClient32PostBody;
+class HTTPClient32PostDataBody;
+class HTTPClient32PostMultipartBody;
+class HTTPClient32PostUrlencodedBody;
+
+class HTTPClient32Headers;
+
+class HTTPClient32Response;
+class HTTPClient32ResponsePrint;
+class HTTPClient32ResponseString;
+class HTTPClient32ResponseFile;
+
+class HTTPClient32 {
+	public:
+		enum METHOD_TYPE {
+			HTTP_GET,
+			HTTP_POST
+		};
+
+		struct HTTPRequest {
+			bool		secure;
+			String		host;
+			String 		uri;
+			uint16_t	port;
+			String		method;
+			uint32_t	responseTimeout = 30000;
+			const char* rootCACertificate;
+
+			METHOD_TYPE methodType;
+
+			HTTPRequest(bool secure, HTTPClient32::METHOD_TYPE method, String host, uint16_t port, String uri, const char* rootCACertificate = NULL) {
+				this->secure = secure;
+				this->methodType = method;
+				this->method = HTTP_GET ? F("GET") : F("POST");
+				this->host = host;
+				this->port = port;
+				this->uri = uri;
+				this->rootCACertificate = rootCACertificate;
+			}
+		};
+		
+		//@implement
+		HTTPClient32() {
+			this->requestHeaders = new HTTPClient32Headers();
+		}
+
+		//@implement
+		void clear() {
+			setBody(NULL);
+			setRequest(NULL);
+			setResponse(NULL);
+		}
+
+		virtual ~HTTPClient32() {
+			clear();
+			if (this->client) {
+				delete client;
+			}
+			delete requestHeaders;
+		}
+
+		/*** HEADERS ***/
+
+        //@implement
+		HTTPClient32Headers* getRequestHeaders() {
+			return this->requestHeaders;
+		}
+
+        //@implement
+		HTTPClient32Headers* getResponseHeaders() {
+			if (!this->response) {
+				return NULL;
+			}
+			return this->response->getHeaders();
+		}
+
+		/*** SET POST BODY ***/
+
+        //@implement
+		//@include "HTTPClient32PostBody.h"
+		void setBody(HTTPClient32PostBody* body) {
+			if (this->body) {
+				delete this->body;
+			}
+			this->body = body;
+		}
+
+		//@implement
+		//@include "HTTPClient32PostBody.h"
+		HTTPClient32PostDataBody* setPostBody() {
+			HTTPClient32PostDataBody* body = new HTTPClient32PostDataBody(this);
+			this->setBody(body);
+			return body;
+		}
+
+		//@implement
+		//@include "HTTPClient32PostBody.h"
+		HTTPClient32PostUrlencodedBody* setPostEncodedBody() {
+			HTTPClient32PostUrlencodedBody* body = new HTTPClient32PostUrlencodedBody(this);
+			this->setBody(body);
+			return body;
+		}
+
+		//@implement
+		//@include "HTTPClient32PostBody.h"
+		HTTPClient32PostMultipartBody* setPostMultipartBody() {
+			HTTPClient32PostMultipartBody* body = new HTTPClient32PostMultipartBody(this);
+			this->setBody(body);
+			return body;
+		}
+
+		/*** END SET POST BODY ***/
+
+        //@implement
+		HTTPClient32* setAuth(String auth) {
+			this->getRequestHeaders()->set(F("Authorization"), auth);
+			return this;
+		}
+
+        //@implement
+		HTTPClient32* setAuthBasicLogin(String username, String pwd) {
+			return this->setAuth(base64::encode(username + ':' + pwd));
+		}
+
+        //@implement
+		HTTPClient32* setAuthBearer(String token) {
+			return this->setAuth(String(F("BEARER ")) + token);
+		}
+
+		/**
+		 * @brief Immediately execute GET-request
+		 * 
+		 * @param host 
+		 * @param port 
+		 * @param uri 
+		 * @return true 
+		 * @return false 
+		 */
+        //@implement
+		bool GET(String host, uint16_t port, String uri, bool secure, const char* rootCACertificate) {
+			setBody(NULL);
+			
+			if (secure) {
+				prepareHTTPS(METHOD_TYPE::HTTP_GET, host, port, uri, rootCACertificate);
+			} else {
+				prepareHTTP(METHOD_TYPE::HTTP_GET, host, port, uri);
+			}
+			return HTTP();
+		}
+
+		/**
+		 * @brief Immediately execute GET-request
+		 * 
+		 * @param host 
+		 * @param port 
+		 * @param uri 
+		 * @return true 
+		 * @return false 
+		 */
+        //@implement
+		bool GET(String host, uint16_t port, String uri) {
+			return GET(host, port, uri, false, NULL);
+		}
+
+		/**
+		 * @brief Immediately execute POST-request
+		 * 
+		 * @param host 
+		 * @param port 
+		 * @param uri 
+		 * @return true 
+		 * @return false 
+		 */
+        //@implement
+		bool POST(String host, uint16_t port, String uri) {
+			return POST(host, port, uri, false, NULL);
+		}
+
+		/**
+		 * @brief Immediately execute POST-request
+		 * 
+		 * @param host 
+		 * @param port 
+		 * @param uri 
+		 * @return true 
+		 * @return false 
+		 */
+        //@implement
+		bool POST(String host, uint16_t port, String uri, bool secure, const char* rootCACertificate) {
+			if (!body) {
+				DEBUGLN("POST content is empty");
+				return false;
+			}
+
+			if (secure) {
+				prepareHTTPS(METHOD_TYPE::HTTP_POST, host, port, uri, rootCACertificate);
+			} else {
+				prepareHTTP(METHOD_TYPE::HTTP_POST, host, port, uri);
+			}
+			return HTTP();
+		}		
+
+        /**
+         * @brief Prepare request for later use
+         * 
+         * @param method 
+         * @param host 
+         * @param port 
+         * @param uri 
+         */
+		//@implement
+		HTTPClient32* prepareHTTP(METHOD_TYPE method, String host, uint16_t port, String uri) {
+			setRequest(new HTTPRequest(false, method, host, port, uri));
+			return this;
+		}
+
+		HTTPClient32* prepareHTTPS(METHOD_TYPE method, String host, uint16_t port, String uri, const char* rootCACertificate = NULL) {
+			setRequest(new HTTPRequest(true, method, host, port, uri, rootCACertificate));
+			return this;
+		}
+
+		bool setRequestTimeout(uint32_t responseTimeout) {
+			if (!this->request) {
+				return false;
+			}
+			this->request->responseTimeout = responseTimeout;
+		}
+
+		/**
+		 * @brief Execute prepared request
+		 * 
+		 * @return true 
+		 * @return false 
+		 */
+		//@implement
+		bool HTTP() {
+			if (!this->request) {
+				DEBUGLN("No request target prepared");
+				return false;
+			}
+
+			if (this->request->secure) {
+				WiFiClientSecure* c = new WiFiClientSecure();
+				if (this->request->rootCACertificate) {
+					c->setCACert(this->request->rootCACertificate);
+				}
+				client = c;
+			} else {
+				client = new WiFiClient();
+			}
+			bool res = send();
+			client->stop();
+			delete client;
+			client = NULL;
+			
+			return res;
+		}
+
+        //@implement
+		//@include "HTTPClient32Response.h"
+		void setResponse(HTTPClient32Response* r) {
+			DEBUGLN("setResponse");
+			if (response) {
+				DEBUGLN("setResponse/FREE");
+				delete this->response;
+			}
+			this->response = r;
+		}
+
+        //@implement
+		//@include "HTTPClient32Response.h"
+		HTTPClient32ResponseString* setResponseToString() {
+			setResponse(new HTTPClient32ResponseString());
+		}
+
+        //@implement
+		//@include "HTTPClient32Response.h"
+		HTTPClient32ResponseFile* setResponseToFile(File &file) {
+			setResponse(new HTTPClient32ResponseFile(file));
+		}
+
+        //@implement
+		//@include "HTTPClient32Response.h"
+		HTTPClient32ResponsePrint* setResponseToPrint(Print* print) {
+			setResponse(new HTTPClient32ResponsePrint(print));
+		}
+
+		//@implement
+		HTTPClient32Response* getResponse() {
+			return this->response;
+		}
+
+        //@implement
+		//@include "HTTPClient32Response.h"
+		String getResponseString() {
+			 return ((HTTPClient32ResponseString*)this->getResponse())->result;
+		}
+
+        //@implement
+        //@include "uri_encode.h"
+		static String URIEncode(String src) {
+            size_t dst_size = uri_encode_buffer_size(src.c_str(), src.length());
+            char dst[dst_size];
+            uri_encode(src.c_str(), src.length(), dst, dst_size);
+            
+			String result = String(dst);
+			result.replace(' ', '+');
+            return result;
+        }
+
+	protected:
+		HTTPClient32Headers*	requestHeaders;
+
+		WiFiClient*						client;
+		HTTPClient32Response*	response = NULL;
+		HTTPClient32PostBody*			body = NULL;
+		HTTPRequest*					request = NULL;
+
+		/***/
+
+        //@implement
+		void sendHeader(String name, String value) {
+			String buf = name + String(": ") + value;
+			client->println(buf);
+			DEBUGLN(buf);
+		}
+
+		/**
+		 * @brief Request implementation
+		 * 
+		 * @return true 
+		 * @return false 
+		 */
+        //@implement
+		//@include "HTTPClient32Headers.h"
+		bool send() {
+			if (!response) {
+				setResponseToString();
+			}
+
+			if (!client->connect(this->request->host.c_str(), this->request->port)) {
+				DEBUGLN("Couldnt connect!");
+				this->response->onError(REQUEST_ERROR::NO_CONNECTION);
+				return false;
+			}
+
+			String buf = this->request->method + F(" ") + this->request->uri + String(" HTTP/1.1");
+			DEBUGLN(buf);
+			client->println(buf);
+			
+			sendHeader(F("Host"), this->request->host);
+		
+			for (uint8_t i = 0; i < requestHeaders->size(); i++) {
+				HTTPClient32Headers::Header* h = requestHeaders->get(i);
+				sendHeader(h->name, h->value);
+			}
+
+			if (this->request->methodType == METHOD_TYPE::HTTP_POST) {
+				if (body) {
+					DEBUGLN("Sending POST size");
+
+					sendHeader(String(HTTPCLIENT32_HEADER_CONTENTLENGTH), String(body->size()));
+
+					DEBUGLN("Headers sent");
+
+					DEBUGLN();
+					client->println();
+
+					DEBUGLN("Sending body");
+
+					body->send(this->client);
+				} else {
+					DEBUGLN("ERROR! Body is empty!");
+				}
+			} else {
+				DEBUGLN("Headers sent");
+				DEBUGLN();
+
+				client->println();
+			}
+
+			DEBUGLN("Send complete");
+			
+			if (handleHeaderResponse()) {
+				return true;
+			}
+
+			return false;
+		}
+
+		/**
+		 * reads the response from the server
+		 * @return bool
+		 */
+        //@implement
+		bool handleHeaderResponse()
+		{
+			uint16_t returnCode = 0;
+			int _size = -1;
+
+			unsigned long lastDataTime = millis();
+			unsigned long responseStarted = lastDataTime;
+			bool firstLine = true;
+			HTTPClient32Headers* responseHeaders = this->response->getHeaders();
+
+			while(client->connected()) {
+				size_t len = client->available();
+				if(len > 0) {
+					String headerLine = client->readStringUntil('\n');
+					headerLine.trim(); // remove \r
+
+					lastDataTime = millis();
+
+					DEBUGLN(headerLine);
+
+					if (firstLine) {
+						firstLine = false;
+						int codePos = headerLine.indexOf(' ') + 1;
+						returnCode = headerLine.substring(codePos, headerLine.indexOf(' ', codePos)).toInt();
+					} else if(headerLine.indexOf(':')) {
+						String headerName = headerLine.substring(0, headerLine.indexOf(':'));
+						String headerValue = headerLine.substring(headerLine.indexOf(':') + 1);
+						headerValue.trim();
+
+						if (headerName.equalsIgnoreCase(HTTPCLIENT32_HEADER_CONTENTLENGTH)) {
+							_size = headerValue.toInt();
+						}
+
+						if (headerName.length() > 0) {
+							responseHeaders->set(headerName, headerValue);
+						}
+					}
+
+					if (headerLine == "") {
+						DEBUG("code: ");
+						DEBUGLN(returnCode);
+
+						this->response->setReturnCode(returnCode);
+
+						if(_size > 0) {
+							this->response->expected(_size);
+							DEBUG("size: ");
+							DEBUGLN(_size);
+						}
+
+						if(returnCode) {
+							handleResponseBody(_size, responseStarted);
+							return true;
+						}
+						DEBUGLN("Remote host is not an HTTP Server!");
+						this->response->onError(REQUEST_ERROR::NOT_A_WEBSERVER);
+						return false;
+					}
+
+				} else {
+					if((millis() - responseStarted) > this->request->responseTimeout) {
+						DEBUGLN("Response (HEAD) timeout!");
+						this->response->onError(REQUEST_ERROR::NO_RESPONSE);
+						return false;
+					}
+					delay(10);
+				}
+			}
+
+			DEBUGLN("CONNECTION_LOST");
+			this->response->onError(CONNECTION_LOST);
+			return false;
+		}
+
+        //@implement
+		void handleResponseBody(size_t expectedSize, unsigned long responseStarted) {
+			size_t bodySize = 0;
+			//unsigned long start = millis();
+
+			while (client->connected()) {
+				if ((millis() - responseStarted) >= this->request->responseTimeout) {
+					DEBUGLN("Response (READ) timeout!");
+					this->response->onError(REQUEST_ERROR::READTIMEOUT);
+					return;
+				}
+				while (client->available()) {
+					this->response->print(client->read());
+					bodySize++;
+				}
+				if (bodySize > 0 && bodySize >= expectedSize) {
+					return;
+				}
+			}
+		}		
+
+        //@implement
+		void setRequest(HTTPRequest* request) {
+			DEBUGLN("setRequest");
+			if (this->request) {
+				DEBUGLN("setRequest//FREE");
+				delete this->request;
+			}
+			this->request = request;
+		}
+};
