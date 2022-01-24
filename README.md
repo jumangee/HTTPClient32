@@ -7,18 +7,17 @@ Flexible and simple object-oriented HTTP client library for the ESP32 supporting
 ```
   HTTPClient32* client = new HTTPClient32();
   
-	// add some custom headers
+  // add some custom headers
   HTTPClient32Headers* headers = client->getRequestHeaders();
-	headers
-		->set("bee", "123")
-		->set("gggg", "asdfadf");
-
-	// set simple post body
-	client
-		->setPostBody()
-		
-		// set content with content-type
-		->setBodyString("plaint/text", "fuzz=bbbb");
+  headers
+  	->set("bee", "123")
+	->set("gggg", "asdfadf");
+  
+  // set simple post body
+  client
+  	->setPostBody()
+	// set content with content-type
+	->setBodyString("plaint/text", "fuzz=bbbb");
 
     if (client->POST("quest-book.ru", 80, "/")) {
 		Serial.println("Response POST: ");
