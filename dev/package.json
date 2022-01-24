@@ -1,8 +1,7 @@
 {
   "name": "HTTPClient32",
   "version": "1.0.0",
-  "description": "Flexible and simple object-oriented HTTP client library for the ESP32 supporting GET, POST urlencoded and multipart requests
-",
+  "description": "Flexible and simple object-oriented HTTP client library for the ESP32 supporting GET, POST urlencoded and multipart requests",
   "keywords": ["ESP32","HTTP","Arduino"],
   "author": "Jumangee",
   "devDependencies": {
