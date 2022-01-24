@@ -26,7 +26,8 @@ Flexible and simple object-oriented HTTP client library for the ESP32 supporting
     } else {
         Serial.println("ERROR!");
     }
-	delete client;
+    
+    delete client;
  ```
  
 ### Multipart POST
@@ -57,5 +58,5 @@ Flexible and simple object-oriented HTTP client library for the ESP32 supporting
     Serial.println(client->getResponseString());
   }
   
-	delete client;
+  delete client;
  ```
