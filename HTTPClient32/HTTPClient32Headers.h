@@ -18,7 +18,6 @@ class HTTPClient32Headers {
 		HTTPClient32Headers* set(String name, String value);
 
 		~HTTPClient32Headers() {
-			DEBUGLN("Headers FREE");
 			clear();
 		}
 

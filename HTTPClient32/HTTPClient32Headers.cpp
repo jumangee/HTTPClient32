@@ -27,7 +27,7 @@ String HTTPClient32Headers::get(String name) {
 HTTPClient32Headers::Header* HTTPClient32Headers::find(String name) {
     for (uint8_t i = 0; i < headersCount; i++) {
 				Header* h = headers[i];
-				if (h->name == name) {
+				if (h->name.equalsIgnoreCase(name)) {
 					return h;
 				}
 			}

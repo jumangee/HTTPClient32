@@ -15,9 +15,7 @@ class HTTPClient32Response {
     public:
         HTTPClient32Response();
 
-        virtual ~HTTPClient32Response() {
-            delete headers;
-        }
+        virtual ~HTTPClient32Response();
 
         HTTPClient32Headers* getHeaders();
 

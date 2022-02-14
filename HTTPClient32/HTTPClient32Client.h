@@ -53,13 +53,7 @@ class HTTPClient32 {
 
 		void clear();
 
-		virtual ~HTTPClient32() {
-			clear();
-			if (this->client) {
-				delete client;
-			}
-			delete requestHeaders;
-		}
+		virtual ~HTTPClient32();
 
 		/*** HEADERS ***/
 

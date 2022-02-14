@@ -19,6 +19,7 @@ class HTTPClient32Response {
             headers = new HTTPClient32Headers();
         }
 
+        //@implement
         virtual ~HTTPClient32Response() {
             delete headers;
         }

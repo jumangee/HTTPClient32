@@ -14,6 +14,14 @@ void HTTPClient32::clear() {
 	setResponse(NULL);
 }
 
+ HTTPClient32::~HTTPClient32() {
+	clear();
+	if (this->client) {
+		delete client;
+	}
+	delete requestHeaders;
+}
+
 HTTPClient32Headers* HTTPClient32::getRequestHeaders() {
 	return this->requestHeaders;
 }
@@ -123,24 +131,28 @@ bool HTTPClient32::HTTP() {
 }
 
 void HTTPClient32::setResponse(HTTPClient32Response* r) {
-	DEBUGLN("setResponse");
 	if (response) {
-		DEBUGLN("setResponse/FREE");
 		delete this->response;
 	}
 	this->response = r;
 }
 
 HTTPClient32ResponseString* HTTPClient32::setResponseToString() {
-	setResponse(new HTTPClient32ResponseString());
+	HTTPClient32ResponseString* result = new HTTPClient32ResponseString();
+	setResponse(result);
+            return result;
 }
 
 HTTPClient32ResponseFile* HTTPClient32::setResponseToFile(File &file) {
-	setResponse(new HTTPClient32ResponseFile(file));
+            HTTPClient32ResponseFile* result = new HTTPClient32ResponseFile(file);
+	setResponse(result);
+            return result;
 }
 
 HTTPClient32ResponsePrint* HTTPClient32::setResponseToPrint(Print* print) {
-	setResponse(new HTTPClient32ResponsePrint(print));
+            HTTPClient32ResponsePrint* result = new HTTPClient32ResponsePrint(print);
+	setResponse(result);
+            return result;
 }
 
 HTTPClient32Response* HTTPClient32::getResponse() {
@@ -193,7 +205,6 @@ bool HTTPClient32::send() {
 			DEBUGLN("Headers sent");
 			DEBUGLN();
 			client->println();
-			DEBUGLN("Sending body");
 			body->send(this->client);
 		} else {
 			DEBUGLN("ERROR! Body is empty!");
@@ -292,9 +303,7 @@ void HTTPClient32::handleResponseBody(size_t expectedSize, unsigned long respons
 }		
 
 void HTTPClient32::setRequest(HTTPRequest* request) {
-	DEBUGLN("setRequest");
 	if (this->request) {
-		DEBUGLN("setRequest//FREE");
 		delete this->request;
 	}
 	this->request = request;

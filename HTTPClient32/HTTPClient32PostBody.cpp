@@ -35,7 +35,6 @@ size_t HTTPClient32PostDataBody::size() {
 }
 
 bool HTTPClient32PostDataBody::send(WiFiClient* stream) {
-    DEBUGLN("Sending data body");
     this->body->send(stream);
     return true;
 }
@@ -61,11 +60,10 @@ HTTPClient32PostUrlencodedBody* HTTPClient32PostUrlencodedBody::addValue(String 
 }
 
 size_t HTTPClient32PostUrlencodedBody::size() {
-    return contentSize;
+    return contentSize + 2;
 }
 
 bool HTTPClient32PostUrlencodedBody::send(WiFiClient* stream) {
-    DEBUGLN("Sending urlencoded body");
     stream->println(content);
     return true;
 }

@@ -40,11 +40,15 @@ module.exports = function(grunt) {
 			];
 		  
 		  info.push(info[0].length);
-		  if (info[0].indexOf('virtual') > -1) {
+		  
+		  if (info[0] === 'virtual') {
+			  info[0] = '';
+		  } else if (info[0].indexOf('virtual') > -1) {
 			//grunt.log.writeln(JSON.stringify(info));
 			info[0] = info[0].replace('virtual ', '').trim();
 			//grunt.log.writeln(JSON.stringify(info));
 		  }
+		  
 		  if (info[0].indexOf('static') > -1) {
 			info[0] = info[0].replace('static ', '').trim();
 		  }
@@ -294,6 +298,9 @@ module.exports = function(grunt) {
 		methodDesc = false;
 		
 		if (fileext == '.hcc') {
+			if (cppFileData.length == 0) {
+				grunt.file.write(f.dest + "/" + filename + '.h', srcData.join(grunt.util.linefeed));
+			}
 			// remove .hcc
 			grunt.file.delete(filepath);
 			grunt.log.writeln('PRE-source .HCC file COPY "' + filepath + '" DELETED.');

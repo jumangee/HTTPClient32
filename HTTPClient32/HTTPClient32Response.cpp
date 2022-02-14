@@ -6,6 +6,10 @@ HTTPClient32Response::HTTPClient32Response() {
     headers = new HTTPClient32Headers();
 }
 
+ HTTPClient32Response::~HTTPClient32Response() {
+    delete headers;
+}
+
 HTTPClient32Headers* HTTPClient32Response::getHeaders() {
     return headers;
 }

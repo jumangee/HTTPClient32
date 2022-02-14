@@ -71,6 +71,7 @@ class HTTPClient32PostBodyBuf: public HTTPClient32PostDataBodyContent {
     public:
         virtual void send(WiFiClient* stream) {
             this->sendBuf(stream, this->buf, this->buflen);
+			stream->println();
         };
 
         HTTPClient32PostBodyBuf(HTTPClient32PostDataBody* post, String contentType, uint8_t* buf, size_t buflen);
@@ -121,9 +122,6 @@ class HTTPClient32MultipartString: public HTTPClient32PostMultipartContent {
 
 class HTTPClient32MultipartFile: public HTTPClient32PostMultipartContent {
     protected:
-        uint8_t*  	buf = NULL;
-        size_t	  	buflen = 0;
-
         void fileContent(String &filename, String &contentType, size_t binarySize);
 
     public:
@@ -141,12 +139,13 @@ class HTTPClient32MultipartFileBuffer: public HTTPClient32MultipartFile {
         virtual void send(WiFiClient* stream) {
             HTTPClient32PostBodyContent::send(stream);
             this->sendBuf(stream, this->buf, this->buflen);
+			stream->print(EOL);
         };
 
         HTTPClient32MultipartFileBuffer(HTTPClient32PostMultipartBody* post, String name, String filename, String contentType, uint8_t* buf, size_t buflen);
 
         void setValue(String filename, String contentType, uint8_t* buf, size_t buflen) {
-            fileContent(filename, contentType, buflen);
+            fileContent(filename, contentType, buflen + 2);
 
             this->buf = buf;
             this->buflen = buflen;			
@@ -162,12 +161,13 @@ class HTTPClient32MultipartFileFS: public HTTPClient32MultipartFile {
         virtual void send(WiFiClient* stream) {
             HTTPClient32PostBodyContent::send(stream);
             this->sendFile(stream, this->file);
+			stream->println();
         };
 
         HTTPClient32MultipartFileFS(HTTPClient32PostMultipartBody* post, String name, String filename, String contentType, File &file);
 
         void setValue(String filename, String contentType, File &file) {
-            fileContent(filename, contentType, file.size());
+            fileContent(filename, contentType, file.size() + 2);
 
             this->file = file;
         }        

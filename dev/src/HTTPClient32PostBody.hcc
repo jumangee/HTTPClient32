@@ -108,8 +108,6 @@ class HTTPClient32PostDataBody: public HTTPClient32PostBody {
 
         //@implement
         virtual bool send(WiFiClient* stream) {
-            DEBUGLN("Sending data body");
-
             this->body->send(stream);
             return true;
         }
@@ -162,13 +160,11 @@ class HTTPClient32PostUrlencodedBody: public HTTPClient32PostBody {
 
         //@implement
         virtual size_t size() {
-            return contentSize;
+            return contentSize + 2;
         }
 
         //@implement
         virtual bool send(WiFiClient* stream) {
-            DEBUGLN("Sending urlencoded body");
-
             stream->println(content);
 
             return true;

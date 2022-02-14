@@ -61,6 +61,7 @@ class HTTPClient32 {
 			setResponse(NULL);
 		}
 
+        //@implement
 		virtual ~HTTPClient32() {
 			clear();
 			if (this->client) {
@@ -269,9 +270,7 @@ class HTTPClient32 {
         //@implement
 		//@include "HTTPClient32Response.h"
 		void setResponse(HTTPClient32Response* r) {
-			DEBUGLN("setResponse");
 			if (response) {
-				DEBUGLN("setResponse/FREE");
 				delete this->response;
 			}
 			this->response = r;
@@ -280,19 +279,25 @@ class HTTPClient32 {
         //@implement
 		//@include "HTTPClient32Response.h"
 		HTTPClient32ResponseString* setResponseToString() {
-			setResponse(new HTTPClient32ResponseString());
+			HTTPClient32ResponseString* result = new HTTPClient32ResponseString();
+			setResponse(result);
+            return result;
 		}
 
         //@implement
 		//@include "HTTPClient32Response.h"
 		HTTPClient32ResponseFile* setResponseToFile(File &file) {
-			setResponse(new HTTPClient32ResponseFile(file));
+            HTTPClient32ResponseFile* result = new HTTPClient32ResponseFile(file);
+			setResponse(result);
+            return result;
 		}
 
         //@implement
 		//@include "HTTPClient32Response.h"
 		HTTPClient32ResponsePrint* setResponseToPrint(Print* print) {
-			setResponse(new HTTPClient32ResponsePrint(print));
+            HTTPClient32ResponsePrint* result = new HTTPClient32ResponsePrint(print);
+			setResponse(result);
+            return result;
 		}
 
 		//@implement
@@ -375,8 +380,6 @@ class HTTPClient32 {
 
 					DEBUGLN();
 					client->println();
-
-					DEBUGLN("Sending body");
 
 					body->send(this->client);
 				} else {
@@ -500,9 +503,7 @@ class HTTPClient32 {
 
         //@implement
 		void setRequest(HTTPRequest* request) {
-			DEBUGLN("setRequest");
 			if (this->request) {
-				DEBUGLN("setRequest//FREE");
 				delete this->request;
 			}
 			this->request = request;

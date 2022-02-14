@@ -33,7 +33,6 @@ class HTTPClient32Headers {
 		}
 
 		~HTTPClient32Headers() {
-			DEBUGLN("Headers FREE");
 			clear();
 		}
 
@@ -50,7 +49,7 @@ class HTTPClient32Headers {
         HTTPClient32Headers::Header* find(String name) {
             for (uint8_t i = 0; i < headersCount; i++) {
 				Header* h = headers[i];
-				if (h->name == name) {
+				if (h->name.equalsIgnoreCase(name)) {
 					return h;
 				}
 			}
