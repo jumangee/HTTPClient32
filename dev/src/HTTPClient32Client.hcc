@@ -41,7 +41,7 @@ class HTTPClient32 {
 			HTTPRequest(bool secure, HTTPClient32::METHOD_TYPE method, String host, uint16_t port, String uri, const char* rootCACertificate = NULL) {
 				this->secure = secure;
 				this->methodType = method;
-				this->method = HTTP_GET ? F("GET") : F("POST");
+				this->method = method == HTTP_GET ? F("GET") : F("POST");
 				this->host = host;
 				this->port = port;
 				this->uri = uri;
