@@ -193,7 +193,15 @@ class HTTPClient32 {
 		 */
 		bool handleHeaderResponse();
 
-		void handleResponseBody(size_t expectedSize, unsigned long responseStarted);
+        /**
+         * hex2int
+         * take a hex string and convert it to a 32bit number (max 8 hex digits)
+         */
+        uint32_t hex2int(const char *hex);
+
+		void handleChunkedBody(size_t &expectedSize, unsigned long &responseStarted);
+
+		void handleResponseBody(size_t &expectedSize, unsigned long &responseStarted);
 
 		void setRequest(HTTPRequest* request);
 };

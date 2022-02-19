@@ -225,7 +225,7 @@ bool HTTPClient32::send() {
 bool HTTPClient32::handleHeaderResponse() 
 {
 	uint16_t returnCode = 0;
-	int _size = -1;
+	size_t _size = 0;
 	unsigned long lastDataTime = millis();
 	unsigned long responseStarted = lastDataTime;
 	bool firstLine = true;
@@ -262,7 +262,10 @@ bool HTTPClient32::handleHeaderResponse()
 					DEBUGLN(_size);
 				}
 				if(returnCode) {
-					handleResponseBody(_size, responseStarted);
+                            if (responseHeaders->get(F("Transfer-Encoding")).equalsIgnoreCase(F("chunked"))) {
+                                handleChunkedBody(_size, responseStarted);
+                            } else
+					    handleResponseBody(_size, responseStarted);
 					return true;
 				}
 				DEBUGLN("Remote host is not an HTTP Server!");
@@ -283,9 +286,48 @@ bool HTTPClient32::handleHeaderResponse()
 	return false;
 }
 
-void HTTPClient32::handleResponseBody(size_t expectedSize, unsigned long responseStarted) {
+uint32_t HTTPClient32::hex2int(const char *hex) {
+    uint32_t val = 0;
+    while (*hex) {
+        // get current character then increment
+        uint8_t byte = *hex++; 
+        // transform hex character to the 4bit equivalent number, using the ascii table indexes
+        if (byte >= '0' && byte <= '9') byte = byte - '0';
+        else if (byte >= 'a' && byte <='f') byte = byte - 'a' + 10;
+        else if (byte >= 'A' && byte <='F') byte = byte - 'A' + 10;    
+        // shift 4 to make space for new digit, and add the 4 bits of the new digit 
+        val = (val << 4) | (byte & 0xF);
+    }
+    return val;
+}
+
+void HTTPClient32::handleChunkedBody(size_t &expectedSize, unsigned long &responseStarted) {
+            while(client->connected()) {
+		size_t len = client->available();
+		if(len > 0) {
+			String chunkHeader = client->readStringUntil('\n');
+			chunkHeader.trim(); // remove \r
+                    uint32_t size = hex2int(chunkHeader.c_str());                    
+                    DEBUGLN(String(F("CHUNK HEADER: ")) + chunkHeader + String(F(", size: ")) + size);
+                    if (size > 0) {
+                        handleResponseBody(size, responseStarted);
+                        client->readStringUntil('\n'); // chunk footer
+                    } else {
+                        return;
+                    }
+                }
+                else {
+                    if((millis() - responseStarted) > this->request->responseTimeout) {
+				DEBUGLN("Response (HEAD) timeout!");
+				this->response->onError(REQUEST_ERROR::NO_RESPONSE);
+				return;
+			}
+                }
+            }
+}
+
+void HTTPClient32::handleResponseBody(size_t &expectedSize, unsigned long &responseStarted) {
 	size_t bodySize = 0;
-	//unsigned long start = millis();
 	while (client->connected()) {
 		if ((millis() - responseStarted) >= this->request->responseTimeout) {
 			DEBUGLN("Response (READ) timeout!");
@@ -293,14 +335,14 @@ void HTTPClient32::handleResponseBody(size_t expectedSize, unsigned long respons
 			return;
 		}
 		while (client->available()) {
-			this->response->print(client->read());
-			bodySize++;
-		}
-		if (bodySize > 0 && bodySize >= expectedSize) {
-			return;
+                    this->response->print(client->read());
+                    bodySize++;
+                    if (bodySize > 0 && expectedSize > 0 && bodySize >= expectedSize) {
+                        return;
+                    }
 		}
 	}
-}		
+}
 
 void HTTPClient32::setRequest(HTTPRequest* request) {
 	if (this->request) {
